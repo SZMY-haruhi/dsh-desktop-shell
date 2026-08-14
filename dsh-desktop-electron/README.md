@@ -1,6 +1,6 @@
 # dsh-desktop-electron
 
-English | [中文](../README.zh.md)
+English | [中文](../README.md)
 
 Pure Electron shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — the publishable artifact inside [`dsh-desktop-shell`](../README.md). See the [parent README](../README.md) for the full contract (Run / Architecture / Known Limitations).
 

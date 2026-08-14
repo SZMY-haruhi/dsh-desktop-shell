@@ -8,6 +8,22 @@ Pure Electron shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepse
 
 > Reference format: this README follows the package README contract in [`deepseek-harness/docs/cookbook/adding-a-package.md`](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/cookbook/adding-a-package.md#4-write-the-package-readme) and the prose rules in `docs/AGENTS.md`. The closest in-tree template is [`packages/core/tools/README.md`](https://github.com/deepseek-ai/deepseek-harness/blob/main/packages/core/tools/README.md) (the first spine plugin).
 
+## Screenshots
+
+Pure shell is transparent to plugins — windowed `dsh web` with community skins and market work unchanged.
+
+| Dark | Light |
+|---|---|
+| ![Dark](docs/images/dark.png) | ![Light](docs/images/light.png) |
+
+**Community skin** [`dsh-web-ui-all`](https://github.com/zhu1090093659/dsh-web-ui/tree/main/packages/dsh-web-ui-all) — loaded directly, no shell change:
+
+![dsh-web-ui-all](docs/images/dsh-web-ui-all.png)
+
+**Plugin Market** [`dsh-market`](https://github.com/dsh-market/dsh-market#readme) — packaged shell has no effect on `dsh-plugin` ecosystem:
+
+![Plugin Market](docs/images/plugin-market.png)
+
 ## Run
 
 ### Prerequisites

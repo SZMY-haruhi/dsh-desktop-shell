@@ -8,6 +8,22 @@ DeepSeek Harness (`dsh`) 的纯 Electron 外壳。不打包任何 `dsh` 代码�
 
 > 描述文件格式参考：[`deepseek-harness/docs/cookbook/adding-a-package.md §4`](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/cookbook/adding-a-package.md#4-write-the-package-readme) 与 `docs/AGENTS.md` 行文规范；首个插件模板为 [`packages/core/tools/README.md`](https://github.com/deepseek-ai/deepseek-harness/blob/main/packages/core/tools/README.md)。
 
+## 界面预览
+
+纯壳对插件透明——以下为 `DSH Desktop` 窗口化运行 `dsh web` 的实拍，皮肤与插件市场均原样生效。
+
+| 深色 | 浅色 |
+|---|---|
+| ![Dark](docs/images/dark.png) | ![Light](docs/images/light.png) |
+
+**社区皮肤** [`dsh-web-ui-all`](https://github.com/zhu1090093659/dsh-web-ui/tree/main/packages/dsh-web-ui-all)（全量皮肤包）—— 纯壳直接加载，无需修改：
+
+![dsh-web-ui-all](docs/images/dsh-web-ui-all.png)
+
+**插件市场** [`dsh-market`](https://github.com/dsh-market/dsh-market#readme) —— 打包版对 `dsh-plugin` 生态无影响，可正常浏览/安装：
+
+![Plugin Market](docs/images/plugin-market.png)
+
 ## 运行
 
 ### 前置

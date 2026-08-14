@@ -18,6 +18,7 @@
     "productName": "DSH Desktop",
     "directories": { "output": "dist" },
     "files": ["**/*", "!dist/**/*", "!dist-new/**/*", "!dist-tmp/**/*", "!dist_old/**/*", "!dist-locked-old/**/*", "!.pnpm-store/**/*"],
+    "extraResources": [{ "from": "build/icon.png", "to": "build/icon.png" }],
     "win": { "target": ["nsis", "portable"], "icon": "build/icon.png" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
   }

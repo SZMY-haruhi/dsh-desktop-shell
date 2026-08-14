@@ -53,12 +53,17 @@ function waitForReady(url, timeoutMs = 30000) {
   });
 }
 
+function getIconPath() {
+  const p1 = path.join(process.resourcesPath || __dirname, 'build', 'icon.png');
+  try { if (require('fs').existsSync(p1)) return p1; } catch {}
+  return path.join(__dirname, 'build', 'icon.png');
+}
 async function createWindow() {
   win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 900, minHeight: 600,
     center: true, autoHideMenuBar: true,
     backgroundColor: '#111',
-    icon: path.join(__dirname, 'build', 'icon.png'),
+    icon: getIconPath(),
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   });
 
@@ -109,7 +114,7 @@ async function createWindow() {
 function createTray() {
   if (tray) return;
   try {
-    const iconPath = path.join(__dirname, 'build', 'icon.png');
+    const iconPath = getIconPath();
     const img = nativeImage.createFromPath(iconPath);
     tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img.resize({ width: 16, height: 16 }));
     tray.setToolTip('DSH Desktop');

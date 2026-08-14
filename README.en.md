@@ -1,5 +1,7 @@
 # dsh-desktop-shell
 
+<p align="center"><img src="dsh-desktop-electron/build/icon.png" width="128" alt="DSH Desktop icon"></p>
+
 English | [中文](README.md)
 
 Pure Electron shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). No bundled `dsh` code — the window only loads `http://127.0.0.1:3080`; the shell spawns `npx --yes @deepseek-ai/dsh@latest web` on launch, so official updates require no rebuild.

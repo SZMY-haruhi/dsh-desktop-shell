@@ -1,0 +1,23 @@
+{
+  "name": "dsh-desktop-electron",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pure shell for DeepSeek Harness - spawns npx @deepseek-ai/dsh@latest web and loads http://127.0.0.1:3080",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.dsh.desktop-shell",
+    "productName": "DSH Desktop",
+    "directories": { "output": "dist" },
+    "win": { "target": "nsis", "icon": "build/icon.png" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  }
+}

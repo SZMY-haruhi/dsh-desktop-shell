@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+out/
+*.exe
+*.blockmap
+# builder debug yml inside dist/ is covered by dist/ ignore; keep pnpm-lock.yaml
+builder-debug.yml
+
+# Electron builder cache
+.cache/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Env
+.env
+.env.local

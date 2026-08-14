@@ -34,3 +34,5 @@ Desktop.ini
 # Env
 .env
 .env.local
+
+dist-tmp/

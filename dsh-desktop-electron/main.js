@@ -1,11 +1,13 @@
 // Pure shell - Electron 版：双击自动拉起最新官方 dsh web，窗口只 load 3080
 // 不打包任何 dsh 代码，官方更新无需重编
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
+const path = require('path');
 
 let dshProc = null;
 let win = null;
+let tray = null;
 const DSH_URL = 'http://127.0.0.1:3080';
 
 function spawnDsh() {
@@ -20,7 +22,7 @@ function spawnDsh() {
   console.log('[dsh] spawned pid', dshProc.pid);
 }
 
-function waitForReady(url, timeoutMs = 15000) {
+function waitForReady(url, timeoutMs = 30000) {
   const start = Date.now();
   return new Promise((resolve) => {
     const tick = () => {
@@ -43,24 +45,84 @@ async function createWindow() {
     width: 1280, height: 800, minWidth: 900, minHeight: 600,
     center: true, autoHideMenuBar: true,
     backgroundColor: '#111',
+    icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   });
 
-  // 先显示 loading，等 3080 就绪再切
-  win.loadURL('data:text/html,<body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:%23666">正在唤醒 DeepSeek Harness...');
+  // 外链走系统浏览器，不弹独立窗口
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== win.webContents.getURL() && !url.startsWith(DSH_URL)) {
+      // 3080 外的导航一律外跳
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
+  // 关窗确认 / 最小化到托盘
+  win.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      const r = dialog.showMessageBoxSync(win, {
+        type: 'question',
+        buttons: ['最小化到托盘', '直接退出', '取消'],
+        defaultId: 0, cancelId: 2,
+        title: 'DSH Desktop',
+        message: '要退出 DSH Desktop 吗？',
+        detail: '直接退出会终止 dsh web 服务（127.0.0.1:3080），最小化则保留后台。'
+      });
+      if (r === 0) win.hide();
+      else if (r === 1) { app.isQuitting = true; win.close(); }
+      // r===2 取消，不动作
+    }
+  });
+
+  // 先显示 loading（charset 修复乱码），等 3080 就绪再切
+  win.loadURL('data:text/html;charset=utf-8,<body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:%23666;background:%23111">正在唤醒 DeepSeek Harness...</body>');
 
   const ok = await waitForReady(DSH_URL);
   if (ok) win.loadURL(DSH_URL);
-  else win.loadURL('data:text/html,<body style="font-family:sans-serif;padding:40px">dsh web 未就绪，请确认已安装 Node.js<br>可手动运行: npx --yes @deepseek-ai/dsh@latest web');
+  else win.loadURL('data:text/html;charset=utf-8,<body style="font-family:sans-serif;padding:40px;background:%23111;color:%23ccc"><h3>dsh web 未就绪</h3><p>请确认已安装 Node.js，或网络/DNS 尚未就绪（开机冷启动常见）。</p><p><button onclick="location.href=\'http://127.0.0.1:3080\'" style="padding:8px 16px;cursor:pointer">重试</button> &nbsp; 手动运行：<code>npx --yes @deepseek-ai/dsh@latest web</code></p></body>');
+}
+
+function createTray() {
+  if (tray) return;
+  const iconPath = path.join(__dirname, 'build', 'icon.png');
+  const img = nativeImage.createFromPath(iconPath);
+  tray = new Tray(img.resize({ width: 16, height: 16 }));
+  tray.setToolTip('DSH Desktop');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示窗口', click: () => { if (win) win.show(); } },
+    { type: 'separator' },
+    { label: '退出', click: () => { app.isQuitting = true; app.quit(); } }
+  ]));
+  tray.on('click', () => { if (win) win.show(); });
 }
 
 app.whenReady().then(() => {
   spawnDsh();
+  createTray();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
+app.on('before-quit', () => { app.isQuitting = true; });
+
 app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    // 若托盘存在则不直接退出，隐藏即可；否则按原逻辑退出
+    if (tray && !app.isQuitting) {
+      // 已在 close 事件中 hide，这里不杀服务
+      return;
+    }
+    if (dshProc) try { dshProc.kill(); } catch {}
+    app.quit();
+  }
+});
+
+app.on('quit', () => {
   if (dshProc) try { dshProc.kill(); } catch {}
-  if (process.platform !== 'darwin') app.quit();
 });

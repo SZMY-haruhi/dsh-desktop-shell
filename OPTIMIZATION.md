@@ -1,6 +1,6 @@
 # 优化清单 · DSH Desktop Shell
 
-> 2026-08-15 整理 · 三个主问题 + 追加提问 · 状态：待实现
+> 2026-08-15 整理 · 2026-08-15 全部已实现 · 状态：✅ 已落地
 
 ## 1) 链接 `Ctrl+点击` 弹出独立窗口
 
@@ -62,9 +62,13 @@
 
 ---
 
-### 下一轮实现顺序建议
-1. 外链拦截（1）
-2. 托盘 + 关窗确认（3）
-3. 保留秒杀或切常驻（2）+ loading `charset` 修复（2.1）
+### 实现结果 2026-08-15 04:15
+- ✅ **1) 外链拦截**：`setWindowOpenHandler` + `will-navigate` → 外链走 `shell.openExternal`，`Ctrl+点击` 不再弹独立窗口
+- ✅ **2) 秒杀改为可控**：保留 `windowsHide`，`window-all-closed` 改托盘常驻；`quit` 时才 `dshProc.kill()`；`waitForReady` 超时 15s→30s，`data:` URL 加 `charset=utf-8` + 重试按钮，修复 `æ­£åœ¨å”¤é†’` 乱码和开机冷启动卡死
+- ✅ **2.1 + 3) 托盘+确认**：新增 `Tray`（`build/icon.png` 16px）、`Menu`（显示窗口/退出）、`close` 拦截弹窗（最小化到托盘/直接退出/取消）
 
-> 位置：根目录 `OPTIMIZATION.md` · 下次直接按此清单改 `main.js` 并重编三件套即可。
+> 新三件套：`dist-new/DSH Desktop Setup 0.1.0.exe` 78MB / `DSH Desktop 0.1.0.exe` 77.8MB / `DSH-Desktop-0.1.0-win-unpacked.zip` 109.7MB（`dist` 被运行中进程占用，本次输出到 `dist-new`，下次重启后自动回 `dist`）
+
+### 待实践
+- 重启后手动清理 `dist_old` / 旧 `dist` 锁，验证托盘常驻和外链拦截
+- 开机冷启动再测一次乱码/卡死是否消失

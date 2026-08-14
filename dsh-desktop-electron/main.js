@@ -62,21 +62,11 @@ async function createWindow() {
     }
   });
 
-  // 关窗确认 / 最小化到托盘
+  // 点 × 直接进托盘，不弹确认；真正退出走托盘右键
   win.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
-      const r = dialog.showMessageBoxSync(win, {
-        type: 'question',
-        buttons: ['最小化到托盘', '直接退出', '取消'],
-        defaultId: 0, cancelId: 2,
-        title: 'DSH Desktop',
-        message: '要退出 DSH Desktop 吗？',
-        detail: '直接退出会终止 dsh web 服务（127.0.0.1:3080），最小化则保留后台。'
-      });
-      if (r === 0) win.hide();
-      else if (r === 1) { app.isQuitting = true; win.close(); }
-      // r===2 取消，不动作
+      win.hide();
     }
   });
 

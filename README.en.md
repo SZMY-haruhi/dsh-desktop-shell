@@ -33,7 +33,7 @@ Pure shell is transparent to plugins — windowed `dsh web` with community skins
 
 ### From release
 
-Download `DSH Desktop Setup 0.1.0.exe` from Releases, install, then double-click `DSH Desktop`. The first launch pulls `@deepseek-ai/dsh@latest` via `npx` and opens the Harness Web UI.
+Download `DSH Desktop Setup 0.1.1.exe` from Releases, install, then double-click `DSH Desktop`. The first launch pulls `@deepseek-ai/dsh@latest` via `npx` and opens the Harness Web UI.
 
 ### From source
 
@@ -42,7 +42,7 @@ git clone https://github.com/<you>/dsh-desktop-shell.git
 cd dsh-desktop-shell/dsh-desktop-electron
 pnpm install
 pnpm start        # dev: open Electron against local npx dsh web
-pnpm run build    # prod: electron-builder → dist/DSH Desktop Setup 0.1.0.exe (~80MB, Chromium included)
+pnpm run build    # prod: electron-builder → dist/DSH Desktop Setup 0.1.1.exe (~80MB, Chromium included)
 ```
 
 The shell does not require `deepseek-harness` to be cloned; `npx --yes @deepseek-ai/dsh@latest web` is the single source of truth (same contract as `npx @deepseek-ai/dsh web` in the [upstream README](https://github.com/deepseek-ai/deepseek-harness#run-from-npm)).

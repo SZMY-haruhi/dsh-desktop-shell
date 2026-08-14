@@ -80,6 +80,21 @@ async function createWindow() {
     }
   });
 
+  // 崩溃兜底：窗口崩/无响应时自动回收 dsh 服务，避免孤儿占 3080
+  win.on('unresponsive', () => {
+    console.error('[dsh] window unresponsive');
+    dialog.showErrorBox('DSH Desktop 无响应', '窗口已无响应，将回收后台 dsh 服务以释放 3080 端口。');
+    if (dshProc) try { dshProc.kill(); } catch {}
+  });
+  win.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[dsh] render-process-gone', details);
+    if (dshProc) try { dshProc.kill(); } catch {}
+  });
+  win.webContents.on('crashed', () => {
+    console.error('[dsh] webContents crashed');
+    if (dshProc) try { dshProc.kill(); } catch {}
+  });
+
   // 先显示 loading（charset 修复乱码），等 3080 就绪再切
   win.loadURL('data:text/html;charset=utf-8,<body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:%23666;background:%23111">正在唤醒 DeepSeek Harness...</body>');
 
@@ -90,16 +105,20 @@ async function createWindow() {
 
 function createTray() {
   if (tray) return;
-  const iconPath = path.join(__dirname, 'build', 'icon.png');
-  const img = nativeImage.createFromPath(iconPath);
-  tray = new Tray(img.resize({ width: 16, height: 16 }));
-  tray.setToolTip('DSH Desktop');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示窗口', click: () => { if (win) win.show(); } },
-    { type: 'separator' },
-    { label: '退出', click: () => { app.isQuitting = true; app.quit(); } }
-  ]));
-  tray.on('click', () => { if (win) win.show(); });
+  try {
+    const iconPath = path.join(__dirname, 'build', 'icon.png');
+    const img = nativeImage.createFromPath(iconPath);
+    tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img.resize({ width: 16, height: 16 }));
+    tray.setToolTip('DSH Desktop');
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: '显示窗口', click: () => { if (win) win.show(); } },
+      { type: 'separator' },
+      { label: '退出', click: () => { app.isQuitting = true; app.quit(); } }
+    ]));
+    tray.on('click', () => { if (win) win.show(); });
+  } catch (e) {
+    console.error('[dsh] createTray failed', e);
+  }
 }
 
 app.whenReady().then(() => {
@@ -107,6 +126,21 @@ app.whenReady().then(() => {
   createTray();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+
+// 全局崩溃兜底
+process.on('uncaughtException', (err) => {
+  console.error('[dsh] uncaughtException', err);
+  if (dshProc) try { dshProc.kill(); } catch {}
+  dialog.showErrorBox('DSH Desktop 异常', String(err?.message || err));
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[dsh] unhandledRejection', reason);
+});
+
+app.on('child-process-gone', (_e, details) => {
+  console.error('[dsh] child-process-gone', details);
+  // 若是 GPU/渲染进程崩，窗口已在上面处理；此处仅日志
 });
 
 app.on('before-quit', () => { app.isQuitting = true; });

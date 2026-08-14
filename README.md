@@ -1,5 +1,7 @@
 # dsh-desktop-shell
 
+<p align="center"><img src="dsh-desktop-electron/build/icon.png" width="128" alt="DSH Desktop icon"></p>
+
 [English](README.en.md) | 中文
 
 DeepSeek Harness (`dsh`) 的纯 Electron 外壳。不打包任何 `dsh` 代码——窗口只加载 `http://127.0.0.1:3080`；启动时 `spawn npx --yes @deepseek-ai/dsh@latest web`，官方更新无需重编。

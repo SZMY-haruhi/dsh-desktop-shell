@@ -10,6 +10,19 @@ let win = null;
 let tray = null;
 const DSH_URL = 'http://127.0.0.1:3080';
 
+function killDsh() {
+  if (!dshProc) return;
+  try {
+    if (process.platform === 'win32') {
+      // cmd /c 套了一层，kill 需杀整棵树才能带走孙进程 node
+      spawn('taskkill', ['/PID', String(dshProc.pid), '/T', '/F'], { windowsHide: true });
+    } else {
+      dshProc.kill();
+    }
+  } catch {}
+  dshProc = null;
+}
+
 function spawnDsh() {
   // 用 npx --yes 永远拿 latest，等价于 DSH.bat
   // windows 上用 cmd /c 包一层更稳
@@ -74,15 +87,15 @@ async function createWindow() {
   win.on('unresponsive', () => {
     console.error('[dsh] window unresponsive');
     dialog.showErrorBox('DSH Desktop 无响应', '窗口已无响应，将回收后台 dsh 服务以释放 3080 端口。');
-    if (dshProc) try { dshProc.kill(); } catch {}
+    killDsh();
   });
   win.webContents.on('render-process-gone', (_e, details) => {
     console.error('[dsh] render-process-gone', details);
-    if (dshProc) try { dshProc.kill(); } catch {}
+    killDsh();
   });
   win.webContents.on('crashed', () => {
     console.error('[dsh] webContents crashed');
-    if (dshProc) try { dshProc.kill(); } catch {}
+    killDsh();
   });
 
   // 先显示 loading（charset 修复乱码），等 3080 就绪再切
@@ -121,7 +134,7 @@ app.whenReady().then(() => {
 // 全局崩溃兜底
 process.on('uncaughtException', (err) => {
   console.error('[dsh] uncaughtException', err);
-  if (dshProc) try { dshProc.kill(); } catch {}
+  killDsh();
   dialog.showErrorBox('DSH Desktop 异常', String(err?.message || err));
 });
 process.on('unhandledRejection', (reason) => {
@@ -142,11 +155,11 @@ app.on('window-all-closed', () => {
       // 已在 close 事件中 hide，这里不杀服务
       return;
     }
-    if (dshProc) try { dshProc.kill(); } catch {}
+    killDsh();
     app.quit();
   }
 });
 
 app.on('quit', () => {
-  if (dshProc) try { dshProc.kill(); } catch {}
+  killDsh();
 });

@@ -126,8 +126,24 @@ function createTray() {
   }
 }
 
-app.whenReady().then(() => {
-  spawnDsh();
+// 单实例：连点只唤起已有窗口，不新起托盘/服务
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  });
+}
+app.whenReady().then(async () => {
+  // 起前探活：3080 已有服务就复用，不新 spawn，避免旧孤儿堆积
+  const alive = await waitForReady(DSH_URL, 1000);
+  if (!alive) spawnDsh();
+  else console.log('[dsh] reuse existing 3080');
   createTray();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

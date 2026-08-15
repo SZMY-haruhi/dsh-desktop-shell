@@ -2,7 +2,7 @@
   "name": "dsh-desktop-electron",
   "private": true,
   "version": "0.1.1",
-  "description": "Pure shell for DeepSeek Harness - spawns npx @deepseek-ai/dsh@latest web and loads http://127.0.0.1:3080",
+  "description": "DSH Desktop Shell",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "com.dsh.desktop-shell",
-    "productName": "DSH Desktop",
+    "productName": "DSH Desktop Shell",
     "directories": { "output": "dist" },
     "files": ["**/*", "!dist/**/*", "!dist-new/**/*", "!dist-tmp/**/*", "!dist_old/**/*", "!dist-locked-old/**/*", "!.pnpm-store/**/*"],
     "extraResources": [{ "from": "build/icon.png", "to": "build/icon.png" }],

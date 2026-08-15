@@ -60,6 +60,7 @@ function getIconPath() {
 }
 async function createWindow() {
   win = new BrowserWindow({
+    title: "DSH Desktop Shell",
     width: 1280, height: 800, minWidth: 900, minHeight: 600,
     center: true, autoHideMenuBar: true,
     backgroundColor: '#111',
@@ -91,7 +92,7 @@ async function createWindow() {
   // 崩溃兜底：窗口崩/无响应时自动回收 dsh 服务，避免孤儿占 3080
   win.on('unresponsive', () => {
     console.error('[dsh] window unresponsive');
-    dialog.showErrorBox('DSH Desktop 无响应', '窗口已无响应，将回收后台 dsh 服务以释放 3080 端口。');
+    dialog.showErrorBox('DSH Desktop Shell 无响应', '窗口已无响应，将回收后台 dsh 服务以释放 3080 端口。');
     killDsh();
   });
   win.webContents.on('render-process-gone', (_e, details) => {
@@ -117,7 +118,7 @@ function createTray() {
     const iconPath = getIconPath();
     const img = nativeImage.createFromPath(iconPath);
     tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img.resize({ width: 16, height: 16 }));
-    tray.setToolTip('DSH Desktop');
+    tray.setToolTip('DSH Desktop Shell');
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: '显示窗口', click: () => { if (win) win.show(); } },
       { type: 'separator' },
@@ -140,7 +141,7 @@ app.whenReady().then(() => {
 process.on('uncaughtException', (err) => {
   console.error('[dsh] uncaughtException', err);
   killDsh();
-  dialog.showErrorBox('DSH Desktop 异常', String(err?.message || err));
+  dialog.showErrorBox('DSH Desktop Shell 异常', String(err?.message || err));
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[dsh] unhandledRejection', reason);

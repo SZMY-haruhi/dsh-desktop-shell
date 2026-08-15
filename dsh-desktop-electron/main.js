@@ -13,18 +13,26 @@ function getIconPath() {
   try { if (require('fs').existsSync(p1)) return p1; } catch {}
   return path.join(__dirname, 'build', 'icon.png');
 }
-// 继承式杀：按端口找 LISTENING 3080 再 taskkill /T，兜底 dshProc
+// 继承式杀：按端口找 LISTENING 3080 同步 taskkill，等同手关旧 powershell
 function killDsh() {
   try {
     if (process.platform === 'win32') {
       let pid = null;
       try {
-        const out = execSync('netstat -ano | findstr :3080 | findstr LISTENING', { windowsHide: true }).toString();
-        const m = out.match(/LISTENING\s+(\d+)/);
-        if (m) pid = m[1];
+        const out = execSync('netstat -ano | findstr :3080', { windowsHide: true, encoding: 'utf8' });
+        for (const line of out.split('\n')) {
+          if (line.includes('LISTENING')) {
+            const m = line.trim().match(/(\d+)\s*$/);
+            if (m) { pid = m[1]; break; }
+          }
+        }
       } catch {}
-      if (pid) spawn('taskkill', ['/PID', pid, '/T', '/F'], { windowsHide: true });
-      else if (dshProc) spawn('taskkill', ['/PID', String(dshProc.pid), '/T', '/F'], { windowsHide: true });
+      if (pid) {
+        console.log('[dsh] kill 3080 pid', pid);
+        try { execSync(`taskkill /PID ${pid} /T /F`, { windowsHide: true }); } catch (e) { console.error('[dsh] taskkill', e.message); }
+      } else if (dshProc) {
+        try { execSync(`taskkill /PID ${dshProc.pid} /T /F`, { windowsHide: true }); } catch {}
+      }
     } else if (dshProc) dshProc.kill();
   } catch {}
   dshProc = null;

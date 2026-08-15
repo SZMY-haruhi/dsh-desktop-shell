@@ -33,7 +33,7 @@ DeepSeek Harness (`dsh`) 的纯 Electron 外壳。不打包任何 `dsh` 代码�
 
 ### 发行版
 
-下载 `DSH Desktop Setup 0.1.1.exe` 安装后双击 `DSH Desktop`，首次启动自动 `npx` 拉取 `@deepseek-ai/dsh@latest` 并打开 Web UI。
+下载 `DSH Desktop Shell Setup 0.1.1.exe` 安装后双击 `DSH Desktop Shell`，首次启动自动 `npx` 拉取 `@deepseek-ai/dsh@latest` 并打开 Web UI。
 
 ### 源码
 
@@ -42,7 +42,7 @@ git clone https://github.com/<you>/dsh-desktop-shell.git
 cd dsh-desktop-shell/dsh-desktop-electron
 pnpm install
 pnpm start        # 调试：拉起本地 npx dsh web
-pnpm run build    # 打包：electron-builder → dist/DSH Desktop Setup 0.1.1.exe（~80MB，含 Chromium）
+pnpm run build    # 打包：electron-builder → dist/DSH Desktop Shell Setup 0.1.1.exe（~80MB，含 Chromium）
 ```
 
 无需克隆 `deepseek-harness`；`npx --yes @deepseek-ai/dsh@latest web` 是唯一真源（与上游 README `npx @deepseek-ai/dsh web` 等价）。

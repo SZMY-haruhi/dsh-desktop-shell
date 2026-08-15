@@ -14,7 +14,7 @@ function killDsh() {
   if (!dshProc) return;
   try {
     if (process.platform === 'win32') {
-      // cmd /c 套了一层，kill 需杀整棵树才能带走孙进程 node
+      // 直起 npx，taskkill /T 带走 node 及插件子进程
       spawn('taskkill', ['/PID', String(dshProc.pid), '/T', '/F'], { windowsHide: true });
     } else {
       dshProc.kill();
@@ -24,12 +24,8 @@ function killDsh() {
 }
 
 function spawnDsh() {
-  // 用 npx --yes 永远拿 latest，等价于 DSH.bat
-  // windows 上用 cmd /c 包一层更稳
-  const isWin = process.platform === 'win32';
-  const cmd = isWin ? 'cmd' : 'npx';
-  const args = isWin ? ['/c', 'npx --yes @deepseek-ai/dsh@latest web'] : ['--yes', '@deepseek-ai/dsh@latest', 'web'];
-  dshProc = spawn(cmd, args, { stdio: 'ignore', detached: false, windowsHide: true });
+  // 直起 npx，dshProc.pid 即 node 本体，taskkill /T 才能带走整棵树
+  dshProc = spawn('npx', ['--yes', '@deepseek-ai/dsh@latest', 'web'], { shell: true, windowsHide: true, stdio: 'ignore' });
   dshProc.on('error', (e) => console.error('[dsh] spawn failed, need Node.js:', e.message));
   dshProc.unref();
   console.log('[dsh] spawned pid', dshProc.pid);

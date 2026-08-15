@@ -4,9 +4,9 @@
 
 [English](README.en.md) | 中文
 
-DeepSeek Harness (`dsh`) 的纯 Electron 外壳。不打包任何 `dsh` 代码——窗口只加载 `http://127.0.0.1:3080`；启动时 `spawn npx --yes @deepseek-ai/dsh@latest web`，官方更新无需重编。
+DeepSeek Harness（dsh）桌面客户端 / 纯 Electron 外壳。
+不打包任何 dsh 代码，窗口只加载 http://127.0.0.1:3080；启动时自动执行 npx --yes @deepseek-ai/dsh@latest web。对所有插件完全透明，官方更新无需重新编译。
 
-> 描述文件格式参考：[`deepseek-harness/docs/cookbook/adding-a-package.md §4`](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/cookbook/adding-a-package.md#4-write-the-package-readme) 与 `docs/AGENTS.md` 行文规范；首个插件模板为 [`packages/core/tools/README.md`](https://github.com/deepseek-ai/deepseek-harness/blob/main/packages/core/tools/README.md)。
 
 ## 界面预览
 

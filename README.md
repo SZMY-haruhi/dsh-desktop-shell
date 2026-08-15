@@ -66,3 +66,13 @@ pnpm run build    # 打包：electron-builder → dist/DSH Desktop Shell Setup 0
 ## 许可
 
 [MIT](LICENSE)，与上游一致。
+
+---
+
+## 作者
+
+<a href="https://tonkatsu258.vercel.app/">
+  <img src="docs/avatar.png" width="96" height="96" alt="tonkatsu258" />
+</a>
+
+**感谢 Star ❤️** — [tonkatsu258](https://tonkatsu258.vercel.app/) · [个人网站](https://tonkatsu258.vercel.app/)

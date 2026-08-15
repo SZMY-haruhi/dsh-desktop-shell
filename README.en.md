@@ -123,3 +123,13 @@ No direct invalidation; the spawned Harness process owns any request-prefix chan
 
 [MIT](LICENSE) — same as [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness/blob/main/LICENSE).
 Add topic `dsh-plugin` is not needed (not a Harness plugin); for discoverability consider `dsh` / `deepseek-harness` / `electron-shell`.
+
+---
+
+## Author
+
+<a href="https://tonkatsu258.vercel.app/">
+  <img src="docs/avatar.png" width="96" height="96" alt="tonkatsu258" />
+</a>
+
+**Thanks for Star ❤️** — [tonkatsu258](https://tonkatsu258.vercel.app/) · [Personal Website](https://tonkatsu258.vercel.app/)

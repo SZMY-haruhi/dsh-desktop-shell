@@ -1,10 +1,13 @@
 # dsh-desktop-shell
 
-<p align="center"><img src="dsh-desktop-electron/build/icon.png" width="128" alt="DSH Desktop icon"></p>
+<p align="center">
+  <img src="dsh-desktop-electron/build/icon.png" height="100" alt="DSH Desktop icon" style="vertical-align: middle; margin-right: 16px;">
+  <a href="https://dshfind.com/zh/plugins/SZMY-haruhi/dsh-desktop-shell?ref=badge" style="display: inline-block; vertical-align: middle;">
+    <img src="https://dshfind.com/api/card/SZMY-haruhi/dsh-desktop-shell?lang=zh" alt="dshfind" style="height: 100px; width: 230px; object-fit: cover; object-position: left; border-radius: 8px;">
+  </a>
+</p>
 
 [English](README.en.md) | 中文
-
-[![dshfind](https://dshfind.com/api/card/SZMY-haruhi/dsh-desktop-shell?lang=zh)](https://dshfind.com/zh/plugins/SZMY-haruhi/dsh-desktop-shell?ref=badge)
 
 DeepSeek Harness（dsh）桌面客户端 / 纯 Electron 外壳。
 不打包任何 dsh 代码，窗口只加载 http://127.0.0.1:3080；启动时自动执行 npx --yes @deepseek-ai/dsh@latest web。对所有插件完全透明，官方更新无需重新编译。

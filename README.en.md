@@ -1,6 +1,11 @@
 # dsh-desktop-shell
 
-<p align="center"><img src="dsh-desktop-electron/build/icon.png" width="128" alt="DSH Desktop icon"></p>
+<p align="center">
+  <img src="dsh-desktop-electron/build/icon.png" height="100" alt="DSH Desktop icon" style="vertical-align: middle; margin-right: 16px;">
+  <a href="https://dshfind.com/zh/plugins/SZMY-haruhi/dsh-desktop-shell?ref=badge" style="display: inline-block; vertical-align: middle;">
+    <img src="https://dshfind.com/api/card/SZMY-haruhi/dsh-desktop-shell?lang=zh" alt="dshfind" style="height: 100px; width: 320px; object-fit: cover; object-position: left; border-radius: 8px;">
+  </a>
+</p>
 
 English | [中文](README.md)
 

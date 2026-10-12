@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ownedListeningPid, endpointSet } = require('../win-port');
+const { ownedListeningPid, endpointSet, parentMapFromLines } = require('../win-port');
 
 const sample = `
   Proto  Local Address          Foreign Address        State           PID
@@ -35,6 +35,18 @@ test('fallback pid must be our process and the local address must match exactly'
     parentOf: () => null,
   });
   assert.equal(stranger, null);
+});
+
+test('one parent snapshot walks a multi-level process tree', () => {
+  const map = parentMapFromLines('1 0\n10 1\n50 10\nnot a row\n');
+  const pid = ownedListeningPid(sample, {
+    host: '127.0.0.1',
+    port: 3080,
+    rootPid: 1,
+    parentOf: id => map.get(id) || null,
+  });
+  assert.equal(pid, '50');
+  assert.equal(map.size, 3);
 });
 
 test('can match an owned IPv6 loopback listener', () => {

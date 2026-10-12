@@ -44,6 +44,16 @@ function pidIsInTree(pid, rootPid, parentOf) {
   return false;
 }
 
+function parentMapFromLines(text) {
+  const map = new Map();
+  for (const raw of String(text).split(/\r?\n/)) {
+    const match = raw.trim().match(/^(\d+)\s+(\d+)$/);
+    if (!match) continue;
+    map.set(match[1], match[2]);
+  }
+  return map;
+}
+
 function ownedListeningPid(netstatOutput, { host, port, rootPid, parentOf }) {
   for (const pid of listeningPids(netstatOutput, endpointSet(host, port))) {
     if (pidIsInTree(pid, rootPid, parentOf)) return pid;
@@ -51,4 +61,4 @@ function ownedListeningPid(netstatOutput, { host, port, rootPid, parentOf }) {
   return null;
 }
 
-module.exports = { endpointSet, listeningPids, pidIsInTree, ownedListeningPid };
+module.exports = { endpointSet, listeningPids, pidIsInTree, ownedListeningPid, parentMapFromLines };

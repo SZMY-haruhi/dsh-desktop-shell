@@ -1,16 +1,20 @@
 // DSH Desktop Shell — Electron window around `dsh web`.
 const { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage } = require('electron');
-const { spawn, execSync } = require('child_process');
+const { spawn, execSync, execFileSync } = require('child_process');
 const path = require('path');
 const { redactSecrets } = require('./launch-url');
 const { RETRY_URL, navigationDecision, isRetryNavigation, isOpenableExternal } = require('./navigation');
 const { waitForLaunch } = require('./child-output');
-const { ownedListeningPid } = require('./win-port');
+const { ownedListeningPid, parentMapFromLines } = require('./win-port');
+const { recoveryAction, shouldHonorRetry, shouldReportUnexpectedExit } = require('./shell-flow');
 
 let dshProc = null, win = null, tray = null;
 let launchPromise = null;
 let spawnGen = 0;
 let acceptedLaunch = false;
+let expectingExit = false;
+let pageKind = 'loading';
+let unresponsiveOpen = false;
 let allowedOrigin = 'http://127.0.0.1:3080';
 let launchHost = '127.0.0.1';
 let boundPort = 3080;
@@ -58,23 +62,19 @@ function taskkillTree(pid) {
   }
 }
 
-function windowsParentPid(pid) {
-  const safe = safePid(pid);
-  if (!safe) return null;
-  try {
-    const out = execSync(
-      `powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${safe}').ParentProcessId"`,
-      { windowsHide: true, encoding: 'utf8' },
-    );
-    return safePid(out.trim());
-  } catch {
-    return null;
-  }
+function windowsParentMap() {
+  const script = "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1}' -f $_.ProcessId, $_.ParentProcessId }";
+  const out = execFileSync('powershell', ['-NoProfile', '-Command', script], {
+    windowsHide: true,
+    encoding: 'utf8',
+  });
+  return parentMapFromLines(out);
 }
 
 function killDsh() {
   const proc = dshProc;
   dshProc = null;
+  expectingExit = true;
   if (!proc || !proc.pid) return;
   try {
     if (process.platform === 'win32') {
@@ -86,11 +86,18 @@ function killDsh() {
         rememberLog(`netstat fallback: ${e.message}`);
         return;
       }
+      let parents = new Map();
+      try {
+        parents = windowsParentMap();
+      } catch (e) {
+        rememberLog(`process snapshot: ${e.message}`);
+        return;
+      }
       const owned = ownedListeningPid(out, {
         host: launchHost,
         port: boundPort,
         rootPid: proc.pid,
-        parentOf: windowsParentPid,
+        parentOf: pid => parents.get(String(pid)) || null,
       });
       if (!owned) {
         rememberLog(`port ${boundPort} listener is not our process; left it running`);
@@ -107,6 +114,7 @@ function killDsh() {
 }
 
 function spawnDsh() {
+  expectingExit = false;
   const gen = ++spawnGen;
   dshProc = spawn('npx', DSH_ARGS, {
     shell: true,
@@ -116,6 +124,18 @@ function spawnDsh() {
     env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
   });
   const proc = dshProc;
+  proc.on('exit', (code, signal) => {
+    if (!shouldReportUnexpectedExit({
+      gen,
+      currentGen: spawnGen,
+      quitting: app.isQuitting,
+      expectingExit,
+      acceptedLaunch,
+    })) return;
+    rememberLog(`dsh exited after launch code=${code ?? ''} signal=${signal ?? ''}`);
+    acceptedLaunch = false;
+    showErrorPage();
+  });
   const pending = waitForLaunch(proc, LAUNCH_TIMEOUT_MS, { onLine: rememberLog });
   launchPromise = pending.then(result => (gen === spawnGen ? result : { url: null, reason: 'stale' }));
   proc.unref();
@@ -137,10 +157,33 @@ function errorPage() {
   return dataHtml(body);
 }
 
+function currentUrl() {
+  if (!win || win.isDestroyed()) return '';
+  try { return win.webContents.getURL() || ''; } catch { return ''; }
+}
+
+function showErrorPage() {
+  pageKind = 'error';
+  if (!win || win.isDestroyed()) return;
+  win.loadURL(errorPage());
+}
+
+function showLoadingPage() {
+  pageKind = 'loading';
+  if (!win || win.isDestroyed()) return;
+  win.loadURL(loadingPage());
+}
+
+function showApp(url) {
+  pageKind = 'app';
+  if (!win || win.isDestroyed()) return;
+  win.loadURL(url);
+}
+
 function guardNavigation(event, url) {
   if (isRetryNavigation(url)) {
     event.preventDefault();
-    void retryLaunch();
+    if (shouldHonorRetry(pageKind, currentUrl())) void retryLaunch();
     return;
   }
   const decision = navigationDecision(url, allowedOrigin);
@@ -151,7 +194,7 @@ function guardNavigation(event, url) {
 
 function offerReload(message, detail) {
   const target = win;
-  dialog.showMessageBox(target, {
+  return dialog.showMessageBox(target, {
     type: 'warning',
     buttons: ['重新加载', '取消'],
     defaultId: 0,
@@ -160,7 +203,8 @@ function offerReload(message, detail) {
     detail,
   }).then(({ response }) => {
     if (response !== 0 || !target || target.isDestroyed()) return;
-    target.loadURL(acceptedLaunch ? `${allowedOrigin}/` : loadingPage());
+    if (recoveryAction(acceptedLaunch) === 'reload-app') showApp(`${allowedOrigin}/`);
+    else void retryLaunch();
   }).catch(e => rememberLog(e.message || e));
 }
 
@@ -173,24 +217,27 @@ async function showLaunchResult() {
       rememberLog('launch timed out');
       killDsh();
     }
-    win.loadURL(errorPage());
+    showErrorPage();
+    return;
+  }
+  if (dshProc && (dshProc.exitCode != null || dshProc.signalCode != null)) {
+    showErrorPage();
     return;
   }
   noteLaunchUrl(result.url);
   if (acceptedLaunch) {
-    win.loadURL(`${allowedOrigin}/`);
+    showApp(`${allowedOrigin}/`);
     return;
   }
   acceptedLaunch = true;
-  win.loadURL(result.url);
+  showApp(result.url);
 }
 
 async function retryLaunch() {
   killDsh();
   acceptedLaunch = false;
   spawnDsh();
-  if (!win || win.isDestroyed()) return;
-  win.loadURL(loadingPage());
+  showLoadingPage();
   await showLaunchResult();
 }
 
@@ -201,22 +248,32 @@ async function createWindow() {
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (isRetryNavigation(url)) void retryLaunch();
-    else if (isOpenableExternal(url)) shell.openExternal(url);
+    if (isRetryNavigation(url)) {
+      if (shouldHonorRetry(pageKind, currentUrl())) void retryLaunch();
+    } else if (isOpenableExternal(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => guardNavigation(event, url));
   win.webContents.on('will-redirect', (event, url) => guardNavigation(event, url));
   win.on('close', e => { if (!app.isQuitting) { e.preventDefault(); win.hide(); } });
   win.on('unresponsive', () => {
-    offerReload('DSH Desktop Shell 无响应', '页面没有响应。重新加载界面不会停止 dsh web。');
+    if (unresponsiveOpen) return;
+    unresponsiveOpen = true;
+    const detail = acceptedLaunch
+      ? '页面没有响应。重新加载界面不会停止 dsh web。'
+      : '页面没有响应。将重新启动 dsh web。';
+    offerReload('DSH Desktop Shell 无响应', detail)
+      .finally(() => { unresponsiveOpen = false; });
   });
   win.webContents.on('render-process-gone', (_event, details) => {
     rememberLog(`render-process-gone reason=${details && details.reason || ''} code=${details && details.exitCode != null ? details.exitCode : ''}`);
-    offerReload('页面进程已退出', '可以重新加载界面。dsh web 会继续运行。');
+    const detail = acceptedLaunch
+      ? '页面进程已退出。重新加载界面不会停止 dsh web。'
+      : '页面进程已退出。将重新启动 dsh web。';
+    offerReload('页面进程已退出', detail);
   });
 
-  win.loadURL(loadingPage());
+  showLoadingPage();
   await showLaunchResult();
 }
 

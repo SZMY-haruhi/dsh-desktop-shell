@@ -10,7 +10,7 @@
 [English](README.en.md) | 中文
 
 DeepSeek Harness（dsh）桌面客户端 / 纯 Electron 外壳。
-不打包任何 dsh 代码，窗口只加载 http://127.0.0.1:3080；启动时自动执行 npx --yes @deepseek-ai/dsh@latest web。对所有插件完全透明，官方更新无需重新编译。
+不打包任何 dsh 代码。启动时执行 `npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open`，读取 CLI 打印的 `dsh web:` 行（形如 `http://127.0.0.1:3080/?token=...`），再把这个带启动 token 的地址载入窗口。自 0.1.2 起裸地址不会换到会话 cookie，页面会 401。版本钉在已测过的 `0.2.0-rc.2`，换版本时改 `main.js`。对所有插件完全透明。
 
 
 ## 界面预览
@@ -38,7 +38,7 @@ DeepSeek Harness（dsh）桌面客户端 / 纯 Electron 外壳。
 
 ### 发行版
 
-下载 `DSH Desktop Shell Setup 0.1.1.exe` 安装后双击 `DSH Desktop Shell`，首次启动自动 `npx` 拉取 `@deepseek-ai/dsh@latest` 并打开 Web UI。
+下载 `DSH Desktop Shell Setup 0.1.1.exe` 安装后双击 `DSH Desktop Shell`，首次启动自动 `npx` 拉取 `@deepseek-ai/dsh@0.2.0-rc.2` 并打开 Web UI。
 
 ### 源码
 
@@ -50,15 +50,15 @@ pnpm start        # 调试：拉起本地 npx dsh web
 pnpm run build    # 打包：electron-builder → dist/DSH Desktop Shell Setup 0.1.1.exe（~80MB，含 Chromium）
 ```
 
-无需克隆 `deepseek-harness`；`npx --yes @deepseek-ai/dsh@latest web` 是唯一真源（与上游 README `npx @deepseek-ai/dsh web` 等价）。
+无需克隆 `deepseek-harness`。`npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open` 是唯一真源，对应上游 `dsh web --no-open`（[web-app 手册](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/bundle/web-app/README.md)）。
 
 ## 架构
 
-复用英文版同图：`main.js` 负责 spawn → 轮询 3080 → BrowserWindow 加载；关闭窗口时 kill 子进程；与所有 `dsh-plugin` 无冲突（透明壳）。
+`main.js` 负责 spawn（`--no-open`，管道读取 stdout/stderr）→ 匹配 `dsh web: http(s)://…?token=…` → BrowserWindow 加载该地址。关窗口只藏到托盘；托盘「退出」或进程退出时才结束子进程。与所有 `dsh-plugin` 无冲突（透明壳）。
 
 ## 配置
 
-无配置文件。`main.js` 常量：`DSH_URL=http://127.0.0.1:3080`、轮询 15s、窗口 1280×800。
+无配置文件。`main.js` 常量：启动命令 `npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open`、等待 `dsh web:` 行 180s、窗口 1280×800。默认监听仍是上游的 `127.0.0.1:3080`，实际打开的是 CLI 打印的 URL。再次打开窗口时加载该源站的 `/`，不再重复使用启动 token。
 
 ## 模型可见性
 
@@ -66,7 +66,13 @@ pnpm run build    # 打包：electron-builder → dist/DSH Desktop Shell Setup 0
 
 ## 已知限制
 
-同英文版 `Known Limitations`，含固定端口、单实例、无托盘、轮询就绪、Chromium 体积、Windows 优先。
+- **固定端口：** 外壳不传 `--port`。上游默认 `127.0.0.1:3080`。端口被占用时，启动页显示失败，而不会去加载别人的服务。
+- **单实例：** `requestSingleInstanceLock()` 会把已有窗口调到前台。
+- **托盘：** 点关闭只隐藏窗口。托盘「退出」或应用退出时才停止我们拉起的 `dsh web`。没有开机自启。
+- **就绪：** 等待 `dsh web:` 行，最多 180 秒。超时会结束我们的子进程。失败页有「重试」。
+- **Chromium 体积：** NSIS 安装包大约 81MB，因为 Electron 自带 Chromium。
+- **Windows 优先：** `shell: true` 以便走 `npx.cmd`。退出时优先 `taskkill` 我们的进程树；只有失败时才按端口查找，并且本地地址必须整列相等、PID 必须是我们的进程或其子进程。
+- **POSIX 进程组：** 子进程 `detached`，正常退出、SIGINT、SIGTERM 会给整个进程组发 SIGTERM。SIGKILL 抓不到，可能留下孤儿 `dsh web`。
 
 ## 许可
 

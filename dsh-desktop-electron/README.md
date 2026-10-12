@@ -8,11 +8,11 @@ Pure Electron shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepse
 
 ## What it does
 
-- Spawns `npx --yes @deepseek-ai/dsh@latest web` (`cmd /c` on Windows, `npx` on POSIX) with `stdio: ignore`, `windowsHide: true`
-- Polls `http://127.0.0.1:3080` via `http.get` every 500 ms up to 15 s
-- Opens `BrowserWindow` 1280×800 (`backgroundColor #111`, `autoHideMenuBar`, `contextIsolation:true`, `nodeIntegration:false`)
-- Shows inline `data:text/html` loading → real URL on ready, fallback error page otherwise
-- Kills the spawned `dsh` process on `window-all-closed` (darwin excluded)
+- Spawns `npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open` (`shell: true`, `windowsHide: true`, `NO_COLOR=1`) and reads stdout/stderr
+- Waits up to 180s for the `dsh web: <url>?token=…` readiness line from `@deepseek-ai/dsh-web-app`
+- Opens `BrowserWindow` 1280×800 (`backgroundColor #111`, `autoHideMenuBar`, `contextIsolation:true`, `nodeIntegration:false`) and loads that tokenized URL
+- Shows an encoded `data:text/html` loading page, then a fallback page with a redacted log tail if the line never arrives
+- Hides to the tray on close. Quitting the app stops the spawned `dsh` process. On macOS, closing the last window does not quit; Quit still stops the child.
 
 No `dsh` code is bundled; the shell is transparent to every `dsh` plugin and survives upstream `rc → 1.0` without rebuild.
 
@@ -30,7 +30,7 @@ Requires `Node.js ^22.19 || >=24`.
 
 `package.json#build`: `appId com.dsh.desktop-shell`, `productName DSH Desktop`, `directories.output dist`, `win.target nsis`, `icon build/icon.png`, `nsis.oneClick false`.
 
-`main.js` owns `DSH_URL` and the 15 s poll timeout — edit and rebuild to change.
+`main.js` owns the launch argv and the 180s `dsh web:` deadline — edit and rebuild to change.
 
 ## Model Experience
 
@@ -38,4 +38,4 @@ None, as a host shell. See parent [Model Experience](../README.md#model-experien
 
 ## Known Limitations
 
-See parent [Known Limitations](../README.md#known-limitations-and-deferred-work) — fixed port, single instance, no tray, poll-only readiness, Chromium weight, Windows-first.
+See the Chinese parent [已知限制](../README.md#已知限制) — fixed port, single instance, tray without autostart, tokenized readiness line, Chromium weight, Windows PID kill, POSIX orphan on SIGKILL.

@@ -9,7 +9,7 @@
 
 English | [中文](README.md)
 
-Pure Electron shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). No bundled `dsh` code — the window only loads `http://127.0.0.1:3080`; the shell spawns `npx --yes @deepseek-ai/dsh@latest web` on launch, so official updates require no rebuild.
+Pure Electron shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). No bundled `dsh` code. On launch the shell runs `npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open`, reads the `dsh web:` readiness line (`http://127.0.0.1:3080/?token=...`), and loads that tokenized URL. Since 0.1.2 a bare loopback URL does not mint the session cookie and the index responds 401. Bump the pinned spec in `main.js` when moving to another tested release.
 
 > Reference format: this README follows the package README contract in [`deepseek-harness/docs/cookbook/adding-a-package.md`](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/cookbook/adding-a-package.md#4-write-the-package-readme) and the prose rules in `docs/AGENTS.md`. The closest in-tree template is [`packages/core/tools/README.md`](https://github.com/deepseek-ai/deepseek-harness/blob/main/packages/core/tools/README.md) (the first spine plugin).
 
@@ -38,7 +38,7 @@ Pure shell is transparent to plugins — windowed `dsh web` with community skins
 
 ### From release
 
-Download `DSH Desktop Shell Setup 0.1.1.exe` from Releases, install, then double-click `DSH Desktop Shell`. The first launch pulls `@deepseek-ai/dsh@latest` via `npx` and opens the Harness Web UI.
+Download `DSH Desktop Shell Setup 0.1.1.exe` from Releases, install, then double-click `DSH Desktop Shell`. The first launch pulls `@deepseek-ai/dsh@0.2.0-rc.2` via `npx` and opens the Harness Web UI.
 
 ### From source
 
@@ -50,29 +50,37 @@ pnpm start        # dev: open Electron against local npx dsh web
 pnpm run build    # prod: electron-builder → dist/DSH Desktop Shell Setup 0.1.1.exe (~80MB, Chromium included)
 ```
 
-The shell does not require `deepseek-harness` to be cloned; `npx --yes @deepseek-ai/dsh@latest web` is the single source of truth (same contract as `npx @deepseek-ai/dsh web` in the [upstream README](https://github.com/deepseek-ai/deepseek-harness#run-from-npm)).
+The shell does not require `deepseek-harness` to be cloned. `npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open` is the single source of truth (same contract as `dsh web --no-open` in the [web-app manual](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/bundle/web-app/README.md)).
 
 ## Architecture
 
 ```
 Electron main (main.js)
-  ├─ spawnDsh() ──► cmd /c npx --yes @deepseek-ai/dsh@latest web   (stdio: ignore, windowsHide: true)
-  ├─ waitForReady(http://127.0.0.1:3080, 15000ms) ── poll 500ms via http.get
-  └─ BrowserWindow ──► data:text/html loading → http://127.0.0.1:3080 on success
-                      fallback error page when not ready (hint: Node.js / manual npx)
-  on window-all-closed → dshProc.kill() → app.quit() (except darwin)
+  ├─ spawnDsh() ──► npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open
+  │                 (stdout/stderr piped, NO_COLOR=1, windowsHide: true)
+  ├─ parse `dsh web: <url>?token=…` ── 180s deadline; timeout kills our child
+  └─ BrowserWindow ──► data:text/html loading → that tokenized URL once
+                      later windows load the same origin at /
+                      fallback page (redacted log, Retry) when the line never arrives
+  close → hide to tray on every platform
+  window-all-closed → on non-darwin, stay in the tray unless quitting; otherwise kill our child and quit
+  darwin → window-all-closed does not quit; tray Quit / app quit still kills our child
 ```
 
 - **Zero fork:** no vendored `dsh` code, no patch to `cordis.yml`, no plugin registration. The shell is transparent to every `dsh-plugin`.
-- **Always latest:** `npx --yes` resolves `@latest` at each launch; pin by editing `main.js` (`@deepseek-ai/dsh@<version>`).
-- **Single port contract:** `DSH_URL = http://127.0.0.1:3080` matches the upstream Web UI default. No custom `--host`/`--port` passthrough in v0.1.
+- **Pinned runtime:** `main.js` launches `@deepseek-ai/dsh@0.2.0-rc.2`. `^0.2` does not select that prerelease, so the spec is exact.
+- **Launch token:** the window loads the URL from the `dsh web:` line. `--no-open` keeps the system browser closed. Default bind remains `127.0.0.1:3080`. No custom `--host`/`--port` passthrough.
 
 ## Project layout
 
 ```
 dsh-desktop-shell/                 # ← this repo root (what you push to GitHub)
 ├─ dsh-desktop-electron/           # Electron pure-shell (the publishable artifact)
-│  ├─ main.js                      # spawn + poll + BrowserWindow (66 lines)
+│  ├─ main.js                      # spawn + token URL + BrowserWindow
+│  ├─ launch-url.js                # parse the `dsh web:` readiness line
+│  ├─ navigation.js                # origin allowlist and external-protocol check
+│  ├─ child-output.js              # line buffering and launch wait
+│  ├─ win-port.js                  # exact Windows listener match
 │  ├─ package.json                 # private:true, electron 33 + electron-builder 25
 │  ├─ build/icon.png               # window + installer icon
 │  └─ dist/                        # ← ignored: builder output (exe, win-unpacked, blockmap)
@@ -99,8 +107,8 @@ No config file. Constants owned by `main.js`:
 
 | Constant | Default | Meaning |
 |---|---|---|
-| `DSH_URL` | `http://127.0.0.1:3080` | Web UI to load |
-| `waitForReady` timeout | `15000 ms` | poll deadline before fallback page |
+| launch command | `npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open` | child process |
+| launch timeout | `180000 ms` | wait for the `dsh web:` line |
 | window size | `1280×800`, `min 900×600` | `center:true`, `autoHideMenuBar:true`, `backgroundColor:#111` |
 
 Change requires editing `main.js` and rebuilding — intentional, to keep the shell dependency-free.
@@ -117,12 +125,13 @@ No direct invalidation; the spawned Harness process owns any request-prefix chan
 
 ## Known Limitations and Deferred Work
 
-- **Fixed port:** only `127.0.0.1:3080`; custom `--host`/`--port`/`--trusted-host` passthrough is deferred until `dsh` exposes stable CLI flags for it.
-- **Single instance:** no `requestSingleInstanceLock()`; double-clicking the exe spawns a second `npx dsh web` on the same port. Second launch will show the fallback page until the first exits.
-- **No tray / auto-start:** `window-all-closed` kills `dshProc`; no background tray or OS autostart — add `tray` module when needed.
-- **Poll-only readiness:** `http.get` polling with no WebSocket/port-ready signal; the 15 s window may be short on cold `npx` fetch.
-- **Chromium weight:** NSIS exe ~81 MB because Electron bundles Chromium. A `PWA + .bat + msedge --app` variant is ~0 KB but needs Edge; `Tauri` pure-shell is ~5 MB but required Rust toolchain (attempted, `crates.io schannel` failure on this host).
-- **Windows-first:** `cmd /c npx --yes @deepseek-ai/dsh@latest web` is Windows-tested; POSIX branch (`npx --yes @deepseek-ai/dsh@latest web`) is untested in this workspace.
+- **Fixed port:** the shell does not pass `--port`. Upstream still defaults to `127.0.0.1:3080`. If that port is already taken, this process cannot see the other process's launch token, so startup shows the fallback page instead of loading a bare URL.
+- **Single instance:** `requestSingleInstanceLock()` focuses the existing window.
+- **Tray:** closing the window hides it. Tray → 退出, or quitting the app, stops `dsh web`. There is no OS autostart.
+- **Readiness:** the shell waits for the `dsh web:` line (printed after the loader settles). Cold `npx` fetches have 180s.
+- **Chromium weight:** NSIS exe ~81 MB because Electron bundles Chromium.
+- **Windows-first:** `shell: true` so `npx.cmd` works on Windows. Quit kills that process tree by PID. A port scan is only a fallback, and it kills a listener only when the local address matches exactly and the PID is our process or its child.
+- **POSIX process group:** the child is `detached` so quit can signal the whole group. A normal quit, SIGINT, or SIGTERM does that. SIGKILL cannot be caught, so it can leave an orphan `dsh web`.
 
 ## License
 

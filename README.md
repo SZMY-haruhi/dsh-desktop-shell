@@ -10,7 +10,7 @@
 [English](README.en.md) | 中文
 
 DeepSeek Harness（dsh）桌面客户端 / 纯 Electron 外壳。
-不打包任何 dsh 代码，窗口只加载 http://127.0.0.1:3080；启动时自动执行 npx --yes @deepseek-ai/dsh@latest web。对所有插件完全透明，官方更新无需重新编译。
+不打包任何 dsh 代码。启动时执行 `npx --yes @deepseek-ai/dsh@latest web --no-open`，读取 CLI 打印的 `dsh web:` 行（形如 `http://127.0.0.1:3080/?token=...`），再把这个带启动 token 的地址载入窗口。自 0.1.2 起裸地址不会换到会话 cookie，页面会 401。对所有插件完全透明，官方更新无需重新编译。
 
 
 ## 界面预览
@@ -50,15 +50,15 @@ pnpm start        # 调试：拉起本地 npx dsh web
 pnpm run build    # 打包：electron-builder → dist/DSH Desktop Shell Setup 0.1.1.exe（~80MB，含 Chromium）
 ```
 
-无需克隆 `deepseek-harness`；`npx --yes @deepseek-ai/dsh@latest web` 是唯一真源（与上游 README `npx @deepseek-ai/dsh web` 等价）。
+无需克隆 `deepseek-harness`。`npx --yes @deepseek-ai/dsh@latest web --no-open` 是唯一真源，对应上游 `dsh web --no-open`（[web-app 手册](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/bundle/web-app/README.md)）。
 
 ## 架构
 
-复用英文版同图：`main.js` 负责 spawn → 轮询 3080 → BrowserWindow 加载；关闭窗口时 kill 子进程；与所有 `dsh-plugin` 无冲突（透明壳）。
+`main.js` 负责 spawn（`--no-open`，管道读取 stdout/stderr）→ 匹配 `dsh web: http(s)://…?token=…` → BrowserWindow 加载该地址。关窗口只藏到托盘；托盘「退出」或进程退出时才结束子进程。与所有 `dsh-plugin` 无冲突（透明壳）。
 
 ## 配置
 
-无配置文件。`main.js` 常量：`DSH_URL=http://127.0.0.1:3080`、轮询 15s、窗口 1280×800。
+无配置文件。`main.js` 常量：启动命令 `npx --yes @deepseek-ai/dsh@latest web --no-open`、等待 `dsh web:` 行 180s、窗口 1280×800。默认监听仍是上游的 `127.0.0.1:3080`，实际打开的是 CLI 打印的 URL。
 
 ## 模型可见性
 

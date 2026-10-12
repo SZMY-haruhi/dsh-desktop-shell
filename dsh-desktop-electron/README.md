@@ -8,11 +8,11 @@ Pure Electron shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepse
 
 ## What it does
 
-- Spawns `npx --yes @deepseek-ai/dsh@latest web --no-open` (`shell: true`, `windowsHide: true`) and reads stdout/stderr
+- Spawns `npx --yes @deepseek-ai/dsh@0.2.0-rc.2 web --no-open` (`shell: true`, `windowsHide: true`, `NO_COLOR=1`) and reads stdout/stderr
 - Waits up to 180s for the `dsh web: <url>?token=…` readiness line from `@deepseek-ai/dsh-web-app`
 - Opens `BrowserWindow` 1280×800 (`backgroundColor #111`, `autoHideMenuBar`, `contextIsolation:true`, `nodeIntegration:false`) and loads that tokenized URL
 - Shows an encoded `data:text/html` loading page, then a fallback page with a redacted log tail if the line never arrives
-- Hides to the tray on close; quitting the app stops the spawned `dsh` process (darwin excluded)
+- Hides to the tray on close. Quitting the app stops the spawned `dsh` process. On macOS, closing the last window does not quit; Quit still stops the child.
 
 No `dsh` code is bundled; the shell is transparent to every `dsh` plugin and survives upstream `rc → 1.0` without rebuild.
 
@@ -38,4 +38,4 @@ None, as a host shell. See parent [Model Experience](../README.md#model-experien
 
 ## Known Limitations
 
-See parent [Known Limitations](../README.en.md#known-limitations-and-deferred-work) — fixed port, single instance, tray without autostart, tokenized readiness line, Chromium weight, Windows-first.
+See the Chinese parent [已知限制](../README.md#已知限制) — fixed port, single instance, tray without autostart, tokenized readiness line, Chromium weight, Windows PID kill, POSIX orphan on SIGKILL.

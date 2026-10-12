@@ -2,15 +2,22 @@
 const { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage } = require('electron');
 const { spawn, execSync } = require('child_process');
 const path = require('path');
-const { parseLaunchUrl, originOf, redactSecrets } = require('./launch-url');
+const { redactSecrets } = require('./launch-url');
+const { RETRY_URL, navigationDecision, isRetryNavigation, isOpenableExternal } = require('./navigation');
+const { waitForLaunch } = require('./child-output');
+const { ownedListeningPid } = require('./win-port');
 
 let dshProc = null, win = null, tray = null;
 let launchPromise = null;
+let spawnGen = 0;
+let acceptedLaunch = false;
 let allowedOrigin = 'http://127.0.0.1:3080';
+let launchHost = '127.0.0.1';
 let boundPort = 3080;
 const logTail = [];
 const LAUNCH_TIMEOUT_MS = 180000;
-const DSH_ARGS = ['--yes', '@deepseek-ai/dsh@latest', 'web', '--no-open'];
+const DSH_SPEC = '@deepseek-ai/dsh@0.2.0-rc.2';
+const DSH_ARGS = ['--yes', DSH_SPEC, 'web', '--no-open'];
 
 function getIconPath() {
   const p1 = path.join(process.resourcesPath || __dirname, 'build', 'icon.png');
@@ -27,89 +34,92 @@ function rememberLog(line) {
 }
 
 function noteLaunchUrl(url) {
-  allowedOrigin = originOf(url);
   const parsed = new URL(url);
+  allowedOrigin = parsed.origin;
+  launchHost = parsed.hostname;
   boundPort = Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80));
+}
+
+function safePid(pid) {
+  const text = String(pid);
+  return /^\d+$/.test(text) ? text : null;
+}
+
+function taskkillTree(pid) {
+  const safe = safePid(pid);
+  if (!safe) return false;
+  try {
+    execSync(`taskkill /PID ${safe} /T /F`, { windowsHide: true });
+    rememberLog(`taskkill tree ${safe}`);
+    return true;
+  } catch (e) {
+    rememberLog(`taskkill ${safe}: ${e.message}`);
+    return false;
+  }
+}
+
+function windowsParentPid(pid) {
+  const safe = safePid(pid);
+  if (!safe) return null;
+  try {
+    const out = execSync(
+      `powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${safe}').ParentProcessId"`,
+      { windowsHide: true, encoding: 'utf8' },
+    );
+    return safePid(out.trim());
+  } catch {
+    return null;
+  }
 }
 
 function killDsh() {
   const proc = dshProc;
   dshProc = null;
+  if (!proc || !proc.pid) return;
   try {
     if (process.platform === 'win32') {
-      let pid = null;
+      if (taskkillTree(proc.pid)) return;
+      let out = '';
       try {
-        const out = execSync(`netstat -ano | findstr :${boundPort}`, { windowsHide: true, encoding: 'utf8' });
-        for (const line of out.split('\n')) {
-          if (line.includes('LISTENING')) {
-            const m = line.trim().match(/(\d+)\s*$/);
-            if (m) { pid = m[1]; break; }
-          }
-        }
-      } catch {}
-      if (pid) {
-        console.log('[dsh] kill', boundPort, 'pid', pid);
-        try { execSync(`taskkill /PID ${pid} /T /F`, { windowsHide: true }); } catch (e) { console.error('[dsh] taskkill', e.message); }
-      } else if (proc) {
-        try { execSync(`taskkill /PID ${proc.pid} /T /F`, { windowsHide: true }); } catch {}
+        out = execSync('netstat -ano -p tcp', { windowsHide: true, encoding: 'utf8' });
+      } catch (e) {
+        rememberLog(`netstat fallback: ${e.message}`);
+        return;
       }
-    } else if (proc && proc.pid) {
-      try { process.kill(-proc.pid, 'SIGTERM'); } catch { try { proc.kill(); } catch {} }
+      const owned = ownedListeningPid(out, {
+        host: launchHost,
+        port: boundPort,
+        rootPid: proc.pid,
+        parentOf: windowsParentPid,
+      });
+      if (!owned) {
+        rememberLog(`port ${boundPort} listener is not our process; left it running`);
+        return;
+      }
+      taskkillTree(owned);
+      return;
     }
-  } catch {}
-}
-
-function readLines(stream, onLine) {
-  if (!stream) return;
-  let buf = '';
-  stream.setEncoding('utf8');
-  stream.on('data', chunk => {
-    buf += chunk;
-    let idx;
-    while ((idx = buf.indexOf('\n')) >= 0) {
-      onLine(buf.slice(0, idx));
-      buf = buf.slice(idx + 1);
-    }
-  });
-  stream.on('end', () => { if (buf) onLine(buf); });
-}
-
-function waitForLaunch(proc, timeoutMs) {
-  return new Promise(resolve => {
-    let settled = false;
-    const done = url => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(url);
-    };
-    const timer = setTimeout(() => done(null), timeoutMs);
-    const onLine = line => {
-      rememberLog(line);
-      if (settled) return;
-      const url = parseLaunchUrl(line);
-      if (!url) return;
-      noteLaunchUrl(url);
-      done(url);
-    };
-    readLines(proc.stdout, onLine);
-    readLines(proc.stderr, onLine);
-    proc.on('exit', () => done(null));
-    proc.on('error', () => done(null));
-  });
+    try { process.kill(-proc.pid, 'SIGTERM'); }
+    catch { try { proc.kill(); } catch {} }
+  } catch (e) {
+    rememberLog(e.message || e);
+  }
 }
 
 function spawnDsh() {
+  const gen = ++spawnGen;
   dshProc = spawn('npx', DSH_ARGS, {
     shell: true,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
+    env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
   });
-  dshProc.on('error', e => rememberLog(`spawn failed: ${e.message}`));
-  launchPromise = waitForLaunch(dshProc, LAUNCH_TIMEOUT_MS);
-  dshProc.unref();
-  console.log('[dsh] spawned pid', dshProc.pid);
+  const proc = dshProc;
+  const pending = waitForLaunch(proc, LAUNCH_TIMEOUT_MS, { onLine: rememberLog });
+  launchPromise = pending.then(result => (gen === spawnGen ? result : { url: null, reason: 'stale' }));
+  proc.unref();
+  rememberLog(`spawned pid ${proc.pid}`);
 }
 
 function dataHtml(body) {
@@ -122,8 +132,66 @@ function loadingPage() {
 
 function errorPage() {
   const detail = logTail.slice(-8).join('\n') || '未收到 dsh web: 启动地址';
-  const body = `<body style="font-family:sans-serif;padding:40px;background:#111;color:#ccc"><h3>dsh web 未就绪</h3><p>请确认 Node.js（^22.19 或 &gt;=24）与网络就绪。外壳会执行 <code>npx --yes @deepseek-ai/dsh@latest web --no-open</code>，并打开 CLI 打印的带 token 的地址。</p><pre style="white-space:pre-wrap;color:#aaa">${detail.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</pre></body>`;
+  const escaped = detail.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const body = `<body style="font-family:sans-serif;padding:40px;background:#111;color:#ccc"><h3>dsh web 未就绪</h3><p>请确认 Node.js（^22.19 或 &gt;=24）与网络就绪。外壳会执行 <code>npx --yes ${DSH_SPEC} web --no-open</code>，并打开 CLI 打印的带 token 的地址。</p><p><button onclick="location.href='${RETRY_URL}'" style="padding:8px 16px;cursor:pointer">重试</button></p><pre style="white-space:pre-wrap;color:#aaa">${escaped}</pre></body>`;
   return dataHtml(body);
+}
+
+function guardNavigation(event, url) {
+  if (isRetryNavigation(url)) {
+    event.preventDefault();
+    void retryLaunch();
+    return;
+  }
+  const decision = navigationDecision(url, allowedOrigin);
+  if (decision === 'allow') return;
+  event.preventDefault();
+  if (decision === 'external') shell.openExternal(url);
+}
+
+function offerReload(message, detail) {
+  const target = win;
+  dialog.showMessageBox(target, {
+    type: 'warning',
+    buttons: ['重新加载', '取消'],
+    defaultId: 0,
+    cancelId: 1,
+    message,
+    detail,
+  }).then(({ response }) => {
+    if (response !== 0 || !target || target.isDestroyed()) return;
+    target.loadURL(acceptedLaunch ? `${allowedOrigin}/` : loadingPage());
+  }).catch(e => rememberLog(e.message || e));
+}
+
+async function showLaunchResult() {
+  const gen = spawnGen;
+  const result = launchPromise ? await launchPromise : null;
+  if (gen !== spawnGen || !win || win.isDestroyed()) return;
+  if (!result || result.reason !== 'url' || !result.url) {
+    if (result && result.reason === 'timeout') {
+      rememberLog('launch timed out');
+      killDsh();
+    }
+    win.loadURL(errorPage());
+    return;
+  }
+  noteLaunchUrl(result.url);
+  if (acceptedLaunch) {
+    win.loadURL(`${allowedOrigin}/`);
+    return;
+  }
+  acceptedLaunch = true;
+  win.loadURL(result.url);
+}
+
+async function retryLaunch() {
+  killDsh();
+  acceptedLaunch = false;
+  spawnDsh();
+  if (!win || win.isDestroyed()) return;
+  win.loadURL(loadingPage());
+  await showLaunchResult();
 }
 
 async function createWindow() {
@@ -132,21 +200,24 @@ async function createWindow() {
     center: true, autoHideMenuBar: true, backgroundColor: '#111', icon: getIconPath(),
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   });
-  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
-  win.webContents.on('will-navigate', (e, url) => {
-    if (url !== win.webContents.getURL() && !url.startsWith(allowedOrigin)) { e.preventDefault(); shell.openExternal(url); }
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isRetryNavigation(url)) void retryLaunch();
+    else if (isOpenableExternal(url)) shell.openExternal(url);
+    return { action: 'deny' };
   });
+  win.webContents.on('will-navigate', (event, url) => guardNavigation(event, url));
+  win.webContents.on('will-redirect', (event, url) => guardNavigation(event, url));
   win.on('close', e => { if (!app.isQuitting) { e.preventDefault(); win.hide(); } });
-  const onCrash = () => killDsh();
-  win.on('unresponsive', () => { dialog.showErrorBox('DSH Desktop Shell 无响应', '将回收 dsh web'); onCrash(); });
-  win.webContents.on('render-process-gone', onCrash);
-  win.webContents.on('crashed', onCrash);
+  win.on('unresponsive', () => {
+    offerReload('DSH Desktop Shell 无响应', '页面没有响应。重新加载界面不会停止 dsh web。');
+  });
+  win.webContents.on('render-process-gone', (_event, details) => {
+    rememberLog(`render-process-gone reason=${details && details.reason || ''} code=${details && details.exitCode != null ? details.exitCode : ''}`);
+    offerReload('页面进程已退出', '可以重新加载界面。dsh web 会继续运行。');
+  });
 
   win.loadURL(loadingPage());
-  const launchUrl = launchPromise ? await launchPromise : null;
-  if (!win || win.isDestroyed()) return;
-  if (launchUrl) win.loadURL(launchUrl);
-  else win.loadURL(errorPage());
+  await showLaunchResult();
 }
 
 function createTray() {
@@ -161,7 +232,13 @@ function createTray() {
       { label: '退出', click: () => { app.isQuitting = true; app.quit(); } }
     ]));
     tray.on('click', () => win && win.show());
-  } catch (e) { console.error('[dsh] tray', e); }
+  } catch (e) { rememberLog(`tray ${e.message || e}`); }
+}
+
+function shutdownFromSignal() {
+  app.isQuitting = true;
+  killDsh();
+  app.quit();
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -172,15 +249,23 @@ else {
     spawnDsh();
     createTray();
     await createWindow();
-    app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+    app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) void createWindow(); });
   });
-  process.on('uncaughtException', e => { console.error(e); killDsh(); dialog.showErrorBox('DSH Desktop Shell 异常', String(e.message || e)); });
-  process.on('unhandledRejection', r => console.error(r));
+  process.on('uncaughtException', e => {
+    const text = redactSecrets(e && e.stack ? e.stack : e);
+    rememberLog(text);
+    killDsh();
+    dialog.showErrorBox('DSH Desktop Shell 异常', redactSecrets(e && e.message ? e.message : e));
+  });
+  process.on('unhandledRejection', r => rememberLog(r && r.stack ? r.stack : r));
+  process.on('SIGINT', shutdownFromSignal);
+  process.on('SIGTERM', shutdownFromSignal);
   app.on('before-quit', () => { app.isQuitting = true; });
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
       if (tray && !app.isQuitting) return;
-      killDsh(); app.quit();
+      killDsh();
+      app.quit();
     }
   });
   app.on('quit', killDsh);

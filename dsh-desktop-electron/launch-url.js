@@ -5,9 +5,14 @@
 //   dsh web: http://127.0.0.1:3080/?token=<token> (LAN: http://<ip>:<port>)
 // The handoff notice ("dsh web: opening the default browser…") is not a URL.
 const LAUNCH_URL_RE = /dsh web:\s+(https?:\/\/\S+)/;
+const ANSI_RE = /\u001B(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))/g;
+
+function stripAnsi(text) {
+  return String(text).replace(ANSI_RE, '');
+}
 
 function parseLaunchUrl(line) {
-  const match = LAUNCH_URL_RE.exec(String(line));
+  const match = LAUNCH_URL_RE.exec(stripAnsi(line));
   if (!match) return null;
   let url;
   try {
@@ -21,12 +26,13 @@ function parseLaunchUrl(line) {
 }
 
 function originOf(launchUrl) {
-  const url = new URL(launchUrl);
-  return `${url.protocol}//${url.host}`;
+  return new URL(launchUrl).origin;
 }
 
 function redactSecrets(text) {
-  return String(text).replace(/([?&]token=)[^&\s]+/g, '$1<redacted>');
+  return stripAnsi(String(text))
+    .replace(/([?#&]token=)[^&#\s]+/gi, '$1<redacted>')
+    .replace(/\b(Bearer\s+)\S+/gi, '$1<redacted>');
 }
 
-module.exports = { parseLaunchUrl, originOf, redactSecrets };
+module.exports = { stripAnsi, parseLaunchUrl, originOf, redactSecrets };

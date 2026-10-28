@@ -1,3 +1,14 @@
+> [!CAUTION]
+> # 本项目已归档 / This project is archived
+>
+> **官方 DeepSeek Harness Desktop 已发布。请改用官方客户端，勿再装本壳。**
+>
+> **The official DeepSeek Harness Desktop has been released. Use the official client. Do not install this shell anymore.**
+>
+> - **产品 / Product:** [https://www.deepseek.com/en/harness/](https://www.deepseek.com/en/harness/)
+> - **下载 / Download:** [https://www.deepseek.com/en/download/](https://www.deepseek.com/en/download/)
+> - **上游桌面 README / Upstream desktop README:** [https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md)
+
 # dsh-desktop-electron
 
 English | [中文](../README.md)
